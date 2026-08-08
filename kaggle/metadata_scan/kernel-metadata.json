@@ -1,0 +1,15 @@
+{
+  "id": "homeshwarrao/rsna-knee-phase-0-metadata-scan",
+  "title": "RSNA Knee Phase 0 metadata scan",
+  "code_file": "metadata_scan.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": [],
+  "competition_sources": ["competitions/rsna-knee-abnormality-detection"],
+  "kernel_sources": [],
+  "model_sources": []
+}

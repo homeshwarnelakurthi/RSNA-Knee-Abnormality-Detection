@@ -28,3 +28,6 @@ intel/*.ipynb
 # Scratch
 scratch/
 *.log
+
+# Kaggle kernel outputs (contain StudyInstanceUIDs)
+kaggle/out/
