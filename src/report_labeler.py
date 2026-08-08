@@ -202,7 +202,9 @@ ANAT = {
     "Medial Meniscus": rx(r"medial menisc", r"menisco (medial|interno)",
                           r"menisque (medial|interne)", r"mediale meniscus",
                           r"binnenmeniscus", r"innenmeniskus", r"mediale[rn]? meniskus",
-                          r"\bim\b(?=\s)", r"medyal menisk", r"\bic menisk",
+                          # NOT r"\bim\b": "im" is the German preposition "in dem" and
+                          # fired on nearly every German and Dutch report.
+                          r"innenmeniskus\w*", r"medyal menisk", r"\bic menisk",
                           r"medijaln\w* meniskus", r"εσω μηνισκ",
                           r"медиалн\w* менискус", r"вътрешния менискус"),
     "Lateral Meniscus": rx(r"lateral menisc", r"menisco (lateral|externo)",
@@ -334,10 +336,60 @@ FRAC_EXCLUDE = rx(r"osteochondral fractur", r"stress fractur", r"insufficiency f
 IMPACT = rx(r"contusion", r"bruise", r"\bimpact", r"pivot.shift", r"kissing",
             r"traumatic", r"\btraumat", r"\bcontusion osea", r"\btravmat", r"\bkontuzyon")
 
+# Synovitis is scored on images in ~47% of the gold studies but named in only ~12% of
+# reports (docs/FINDINGS.md section 9). Clinical radiologists rarely write the word, but
+# they do describe its imaging signs. These proxies are weaker evidence than the term
+# itself and are scored lower, with lower confidence.
+SYNOV_PROXY = rx(
+    r"hoffa", r"infrapatellar fat pad (o?edema|inflam)", r"fat pad (o?edema|inflam)",
+    r"\bbursitis", r"suprapatellar burs\w* (distend|fluid|thicken)", r"bursite",
+    r"\bbursitis\b", r"schleimbeutelentzundung", r"bursit", r"θυλακιτιδα", r"бурсит",
+    r"capsul\w* (thicken|hypertroph)", r"kapsel(verdickung|hypertroph)",
+    r"engrosamiento capsular", r"kapsul\w* kalinlas", r"θυλακ\w* παχυν",
+    r"villonodular", r"\bpvns\b", r"vellonodular",
+    r"synovi\w* enhanc", r"realce sinovial", r"synovial (fluid )?debris",
+    r"complex (joint )?fluid", r"loculated", r"septat",
+    r"\bplica\b(?=[^.]{0,40}(inflam|thicken|edema))",
+)
 
-def _polarity(clause: str):
-    """(negated, hedged) for a clause."""
-    return bool(NEG.search(clause) or NORMAL.search(clause)), bool(HEDGE.search(clause))
+# Where an unmentioned finding sits in the within-label ordering.
+#
+# An earlier version set these to P(positive | not mentioned) - 0.18 for Synovitis, to
+# express "the report under-reports this badly". That cost 0.121 AUC on Synovitis, and
+# the reason is instructive: AUC is computed PER LABEL, so the absolute value carries no
+# information at all. Only the rank matters. Setting the prior at 0.18 put every silent
+# study ABOVE a report that said "mild synovitis" at 0.15 - an inversion, since a mention
+# is evidence FOR the finding.
+#
+# So severity carries the best rank estimate, and `confidence` - not an inflated
+# severity - carries the uncertainty. Silence sits just above explicit negation (0.02)
+# and below any genuine mention (>=0.10).
+UNMENTIONED_PRIOR = {
+    "Synovitis": 0.06,      # 46.6% gold, named in 11.9% of reports - the extreme case
+    "Fracture": 0.05, "Medial OA": 0.05, "Lateral OA": 0.05, "PF OA": 0.05,
+    "Contusion": 0.05, "Baker's": 0.04, "Effusion": 0.04,
+    "ACL": 0.04, "MCL": 0.04, "Medial Meniscus": 0.04, "Lateral Meniscus": 0.04,
+}
+# A short report omits negatives, so silence in one is weaker evidence of absence than
+# silence in a long structured report. That IS rank information, so it earns a bump -
+# but the bump must stay below a genuine mention.
+SHORT_REPORT_PRIOR = 0.09
+
+
+def _polarity(clause: str, finding_asserted: bool = False):
+    """(negated, hedged) for a clause.
+
+    `NORMAL` ("intact", "normal", "unauffallig") asserts normality, but a clause can
+    assert a finding AND close with a normality remark - "moderate effusion, remainder
+    normal". Treating that as negated zeroes a real positive, so normality only negates
+    when the caller has found no finding of its own. An explicit NEG always negates.
+    """
+    hedge = bool(HEDGE.search(clause))
+    if NEG.search(clause):
+        return True, hedge
+    if NORMAL.search(clause) and not finding_asserted:
+        return True, hedge
+    return False, hedge
 
 
 def extract_side(text: str):
@@ -370,19 +422,23 @@ def _label_clauses(cls: list[str], label: str):
     if label in ("Medial OA", "Lateral OA", "PF OA"):
         # A compartment being named is not osteoarthritis. Require evidence.
         hits = [c for c in hits if OA_EVID.search(c)]
-    return hits
+    if label == "Synovitis":
+        # Fall back to imaging signs when the word itself is absent.
+        proxy = [c for c in cls if SYNOV_PROXY.search(c) and c not in hits]
+        return hits, proxy
+    return hits, []
 
 
 def _score_magnitude(label: str, hits: list[str]) -> tuple[float, float]:
     """Group 1: the rubric asks 'how much?'. Returns (score, confidence)."""
     best, conf = 0.0, 0.5
     for c in hits:
-        neg, hedge = _polarity(c)
+        m = magnitude_score(c)
+        neg, hedge = _polarity(c, finding_asserted=m is not None)
         if neg:
             best = max(best, 0.02)
             conf = max(conf, 0.9)
             continue
-        m = magnitude_score(c)
         if m is None:
             # Asserted but ungraded. The rubric needs moderate-or-large, and "on the
             # fence" was graded negative, so an ungraded mention sits below the middle.
@@ -398,27 +454,41 @@ def _score_magnitude(label: str, hits: list[str]) -> tuple[float, float]:
 
 
 def _score_categorical(label: str, hits: list[str]) -> tuple[float, float]:
-    """Group 2: the rubric asks 'what kind?'. Returns (score, confidence)."""
+    """Group 2: the rubric asks 'what kind?'. Returns (score, confidence).
+
+    Negation is tested FIRST, exactly as in `_score_magnitude`. An earlier version put
+    it last, so "medial meniscus: no tear" matched TEAR and scored 0.72 - the negation
+    branch was unreachable whenever any pathology word appeared, which is nearly always.
+    That single ordering mistake is why the magnitude family gained +0.049 on the 58 gold
+    studies while this family gained +0.000.
+    """
     best, conf = 0.0, 0.5
     for c in hits:
-        neg, hedge = _polarity(c)
-        s = cf = None
+        asserted = bool(TEAR.search(c) or COMPLETE.search(c) or SURFACING.search(c)
+                        or DISPLACED.search(c) or FRAC_ACUTE.search(c) or IMPACT.search(c))
+        neg, hedge = _polarity(c, finding_asserted=asserted)
+        if neg:
+            best = max(best, 0.02)
+            conf = max(conf, 0.9)
+            continue
 
+        s = cf = None
         if label in ("Medial Meniscus", "Lateral Meniscus"):
             if DISPLACED.search(c):
                 s, cf = 0.95, 0.9
             elif SURFACING.search(c):
                 s, cf = 0.88, 0.85
-            elif INTRASUBSTANCE.search(c):
-                # Grade 2 / intrasubstance signal is explicitly NEGATIVE in the rubric.
+            elif INTRASUBSTANCE.search(c) and not TEAR.search(c):
+                # Grade 2 / intrasubstance signal is explicitly NEGATIVE in the rubric -
+                # but only when no tear is asserted alongside it. "Complex degenerative
+                # tear" is a tear that happens to be degenerative, not a non-tear.
                 s, cf = 0.10, 0.8
             elif TEAR.search(c):
-                s, cf = 0.72, 0.6      # "tear" without surfacing language
-            elif neg:
-                s, cf = 0.02, 0.9
+                s, cf = 0.72, 0.6
+            elif INTRASUBSTANCE.search(c):
+                s, cf = 0.10, 0.7
 
         elif label in ("ACL", "MCL"):
-            chronic = bool(CHRONIC.search(c))
             if COMPLETE.search(c):
                 s, cf = 0.93, 0.9
             elif PARTIAL.search(c) and TEAR.search(c):
@@ -427,16 +497,12 @@ def _score_categorical(label: str, hits: list[str]) -> tuple[float, float]:
                 s, cf = 0.08, 0.75     # low-grade sprain is negative in the rubric
             elif TEAR.search(c):
                 s, cf = 0.70, 0.6
-            elif neg:
-                s, cf = 0.02, 0.9
-            if s is not None and chronic and label == "MCL":
+            if s is not None and label == "MCL" and CHRONIC.search(c):
                 s *= 0.35              # rubric wants an ACUTE MCL tear
-                cf = max(cf or 0.5, 0.7)
+                cf = max(cf, 0.7)
 
         elif label == "Fracture":
-            if neg:
-                s, cf = 0.02, 0.9
-            elif FRAC_EXCLUDE.search(c):
+            if FRAC_EXCLUDE.search(c):
                 s, cf = 0.22, 0.7      # osteochondral/stress: host-flagged as not counting
             elif FRAC_ACUTE.search(c):
                 s, cf = 0.92, 0.9
@@ -446,12 +512,11 @@ def _score_categorical(label: str, hits: list[str]) -> tuple[float, float]:
                 s, cf = 0.65, 0.55
 
         elif label == "Contusion":
-            if neg:
-                s, cf = 0.02, 0.9
-            elif IMPACT.search(c):
+            if IMPACT.search(c):
                 s, cf = 0.85, 0.85
             else:
-                # marrow oedema without an impact word: could be degenerative
+                # marrow oedema with no impact word: may be degenerative rather than
+                # traumatic, and the rubric wants impact.
                 m = magnitude_score(c)
                 s, cf = (0.45 if m is None else max(0.30, m)), 0.5
 
@@ -479,27 +544,43 @@ def label_report(text: str, n_words: int | None = None) -> dict:
     short = n_words < 60
     out = {}
     for label in LABELS:
-        hits = _label_clauses(cls, label)
-        if not hits:
+        hits, proxy = _label_clauses(cls, label)
+
+        if not hits and not proxy:
+            # Silence in a short report is weaker evidence of absence than silence in a
+            # long structured one. Uncertainty lives in `confidence`, not in `severity`.
+            prior = UNMENTIONED_PRIOR.get(label, 0.04)
             out[label] = {"presence": 0,
-                          "severity": 0.14 if short else 0.03,
-                          "confidence": 0.25 if short else 0.75,
+                          "severity": SHORT_REPORT_PRIOR if short else prior,
+                          "confidence": 0.2 if short else 0.6,
                           "mentioned": False}
             continue
-        if label in MAGNITUDE_LABELS:
-            sev, conf = _score_magnitude(label, hits)
-        else:
-            sev, conf = _score_categorical(label, hits)
 
-        # Presence control: mentioned, with a pathology cue, and not negated.
+        if hits:
+            if label in MAGNITUDE_LABELS:
+                sev, conf = _score_magnitude(label, hits)
+            else:
+                sev, conf = _score_categorical(label, hits)
+        else:
+            sev, conf = 0.0, 0.4
+
+        if proxy:
+            # Imaging signs of synovitis, scored below an explicit mention.
+            psev, _ = _score_magnitude(label, proxy)
+            psev = min(psev, 0.55)
+            if psev > sev:
+                sev, conf = psev, 0.45
+
         pres = 0
         for c in hits:
-            neg, _ = _polarity(c)
+            asserted = bool(TEAR.search(c) or COMPLETE.search(c) or SURFACING.search(c))
+            neg, _ = _polarity(c, finding_asserted=asserted)
             if neg:
                 continue
             if label in MAGNITUDE_LABELS or TEAR.search(c) or ANAT[label].search(c):
                 pres = 1
                 break
         out[label] = {"presence": pres, "severity": round(float(sev), 4),
-                      "confidence": round(float(conf), 3), "mentioned": True}
+                      "confidence": round(float(conf), 3),
+                      "mentioned": bool(hits)}
     return out
