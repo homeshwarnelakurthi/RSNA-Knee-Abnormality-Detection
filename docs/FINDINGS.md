@@ -58,15 +58,38 @@ So we validated the rule almost entirely on Siemens and Philips, and must *apply
 and Canon where we have no ground truth. The tiny GEHC and Hitachi samples hint the convention may
 differ there.
 
-**Mitigation — use a third, independent source.** Reports routinely state the side in their first
-line (`SOL DİZ`, `MR Knie Rechts`, `MRI ΑΡΙΣΤΕΡΟΥ ΓΟΝΑΤΟΣ`). That is available for **all 4,407
-training studies**, including every GE study. Plan:
+**Mitigation — use a third, independent source.** Reports state the side in their first line
+(`SOL DİZ`, `MR Knie Rechts`, `MRI ΑΡΙΣΤΕΡΟΥ ΓΟΝΑΤΟΣ`), available for training studies including
+GE ones. Built and run (`eda/07_laterality_validation.py`).
 
-1. Extract side from report text (training only).
-2. Use it to validate and, if needed, **calibrate the geometry sign per vendor**.
-3. Ship the calibrated geometry rule, which is what runs at test time where no report exists.
+### RESOLVED — and the GE alarm was a small-sample artifact
 
-This turns a blind spot into a solved problem, and no public notebook appears to do it.
+The report-side extractor is **98.8 % accurate** where it fires (903 studies overlapping the tag),
+and correct on every vendor including GE (100 %, n=37). It covers only 37.2 % of studies, but that
+is enough to audit geometry.
+
+**Geometry vs report-derived side, per vendor:**
+
+| Vendor | n | Agreement | Wilson 95 % CI |
+|---|---|---|---|
+| SIEMENS | 818 | **98.9 %** | [97.9, 99.4] |
+| PHILIPS | 184 | **96.2 %** | [92.4, 98.1] |
+| **GE** | **485** | **92.6 %** | **[89.9, 94.6]** |
+| TOSHIBA | 126 | 87.3 % | [80.4, 92.0] |
+| FUJIFILM | 16 | 81.2 % | [56.9, 93.4] |
+| HITACHI | 8 | 37.5 % | [13.7, 69.4] |
+| **Overall** | **1,638** | **95.4 %** | |
+
+**The earlier "GE = 50 %" reading was noise from n=40** on the `GEHC` vendor string, which is a
+different, tiny population from `GE MEDICAL SYSTEMS`. With n=485, GE geometry is **92.6 %** —
+weaker than Siemens but entirely usable. Hitachi does look inverted, but n=8 with a CI spanning
+13–69 % does not support acting on it, and 8 studies cannot move the metric.
+
+**Shipped rule: DICOM tag when present, else geometry. Coverage 100 %.** Where both exist they
+agree 97.1 % (n=2,203). Expected end-to-end accuracy ≈ 97–98 %.
+
+For *training* we can do better, using tag → report → geometry in that order, and down-weighting
+the studies where geometry and report disagree.
 
 ---
 
@@ -249,9 +272,74 @@ reports; uncertain and down-weighted in short ones.
 | 9 | **Labels**: two extractors — magnitude for 6 labels, categorical for 6 |
 | 10 | **Unmentioned findings**: soft and down-weighted in short reports |
 
+---
+
+## 9. B4 — the thesis tested directly
+
+Both extractors built (`src/report_labeler.py`) and scored on the 58 gold studies.
+
+| | Macro AUC |
+|---|---|
+| Presence (control) | 0.7443 |
+| **Severity (thesis)** | **0.7691** |
+| **Delta** | **+0.0247** |
+
+8 of 12 labels improved. Bootstrap over 2,000 resamples: mean +0.0248, **95 % CI
+[−0.0103, +0.0594], P(delta > 0) = 92.2 %.** The interval straddles zero — at n=58 it was always
+going to. Direction and win-count carry the information.
+
+**The predicted split held, and sharply:**
+
+| Rubric family | Presence | Severity | Delta | Improved |
+|---|---|---|---|---|
+| **Magnitude** (OA ×3, Effusion, Synovitis, Baker's) | 0.7198 | **0.7690** | **+0.0492** | **5/6** |
+| Categorical (ACL, MCL, menisci ×2, Contusion, Fracture) | 0.7688 | 0.7692 | +0.0003 | 3/6 |
+
+**Verdict: the magnitude half of the thesis is confirmed. The categorical half is not.**
+Nearly the whole gain comes from six labels. Per label, the categorical extractor is uneven —
+ACL **+0.121** (its complete/partial/degeneration logic works), but MCL −0.077, Lateral Meniscus
+−0.063, Medial Meniscus −0.020. The meniscus surfacing-vs-intrasubstance rules are firing wrong
+and need rebuilding; ACL's pattern is the template to copy.
+
+**Mechanism, and why this generalises.** Binary output has 2 distinct values, so AUC cannot rank
+within either block — every positive ties with every other positive. The severity extractor emits
+6–9 distinct values per label. Granularity *is* the gain, which is why this should transfer to the
+model's own outputs rather than being an artifact of these 58 studies.
+
+### The bigger discovery: reports systematically under-report
+
+Comparing extractor output over all 4,407 studies against gold prevalence:
+
+| Label | Gold prevalence | Extractor severity > 0.5 | Mentioned at all |
+|---|---|---|---|
+| **Synovitis** | 46.6 % | **3.3 %** | 11.9 % |
+| **Fracture** | 31.0 % | 4.9 % | 19.9 % |
+| **Medial OA** | 25.9 % | 5.2 % | 16.5 % |
+| **Baker's** | 20.7 % | 2.7 % | 44.8 % |
+| Lateral OA | 19.0 % | 2.7 % | 12.6 % |
+| Effusion | 60.3 % | 11.4 % | 83.8 % |
+
+Gold is ~2× enriched, so halve it and the gaps are still large — Synovitis 23 % vs 3.3 %.
+**Clinical reports simply do not comment on findings that image readers score.** Synovitis is the
+extreme: radiologists annotating images call it in nearly half of knees; reporting radiologists
+mention it in one in eight.
+
+For AUC this is survivable — the metric only needs ranking — but it means several labels will be
+learned mostly from pixels with very thin text supervision, and it predicts which labels a
+text-only approach will be worst at. Worth checking against per-label LB behaviour later.
+
+---
+
 ## Still open
 
-- Does the geometry sign rule hold for GE/Toshiba/Canon? *Resolved by decision 1's calibration step.*
-- Presence vs severity extractor scored on the 58 (**B4** — the direct test, not yet run).
+- Rebuild the meniscus and MCL categorical rules — they currently *hurt*. ACL is the template.
+- Why does Synovitis resist extraction? Possibly worth treating as an image-only label.
 - True label prevalence — falls out of a trusted labeler in Phase 2.
 - External datasets — still blocked pending a host ruling.
+
+## Artifacts
+
+Code on [GitHub](https://github.com/homeshwarnelakurthi/RSNA-Knee-Abnormality-Detection);
+derived data (which embeds StudyInstanceUIDs, so it stays off GitHub) as the private Kaggle
+dataset **`homeshwarrao/rsna-knee-2026-phase0-artifacts`** — `series_meta.csv`,
+`weak_labels_v1.csv`, `laterality_sources.csv`, `b4_eval_v1.csv`.
