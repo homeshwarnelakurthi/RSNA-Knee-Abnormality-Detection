@@ -36,24 +36,35 @@ def find_root():
     base = "/kaggle/input"
     if not os.path.isdir(base):
         raise SystemExit(f"{base} does not exist - is this running on Kaggle?")
-    entries = sorted(os.listdir(base))
-    log(f"/kaggle/input contains: {entries}")
-    for d in entries:
-        p = os.path.join(base, d)
-        if os.path.isdir(p) and os.path.isdir(os.path.join(p, "train_series")):
-            log(f"competition mount found: {p}")
-            return p
-    # Fall back to anything holding the competition CSVs.
-    for d in entries:
-        p = os.path.join(base, d)
-        if os.path.isfile(os.path.join(p, "train_series.csv")):
-            log(f"CSV-only mount found: {p}  contents={sorted(os.listdir(p))[:20]}")
-            return p
-    for d in entries:
-        p = os.path.join(base, d)
-        if os.path.isdir(p):
-            log(f"  {d}/ -> {sorted(os.listdir(p))[:15]}")
-    raise SystemExit("competition data not attached - add it as a data source")
+    log(f"/kaggle/input contains: {sorted(os.listdir(base))}")
+
+    # Depth is not fixed: a plain competition slug mounts at
+    # /kaggle/input/<slug>, while a "competitions/<slug>" source mounts one level
+    # deeper at /kaggle/input/competitions/<slug>. Search rather than assume.
+    seen = []
+    for depth in range(1, 4):
+        stack = [(base, 0)]
+        while stack:
+            path, d = stack.pop()
+            if d == depth:
+                seen.append(path)
+                if os.path.isdir(os.path.join(path, "train_series")):
+                    log(f"competition mount found (depth {depth}): {path}")
+                    return path
+                continue
+            try:
+                for e in os.scandir(path):
+                    if e.is_dir():
+                        stack.append((e.path, d + 1))
+            except OSError:
+                pass
+
+    for p in seen[:40]:
+        try:
+            log(f"  {p} -> {sorted(os.listdir(p))[:12]}")
+        except OSError:
+            pass
+    raise SystemExit("no directory containing train_series/ found under /kaggle/input")
 
 
 ROOT = find_root()

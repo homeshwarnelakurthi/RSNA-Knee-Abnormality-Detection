@@ -9,6 +9,7 @@ Kaggle: [rsna-knee-abnormality-detection](https://www.kaggle.com/competitions/rs
 | Doc | What it is |
 |---|---|
 | [docs/STRATEGY.md](docs/STRATEGY.md) | Problem, measured data facts, host intel, ranked ideas. **Read first.** |
+| [docs/FINDINGS.md](docs/FINDINGS.md) | **Phase 0 results** — 819 k files scanned; the 10 decisions they lock |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | The 75-day campaign, phase by phase, and the GPU-hour budget |
 | [docs/RESEARCH_AGENDA.md](docs/RESEARCH_AGENDA.md) | What we still don't know, and which decision each answer changes |
 | [docs/PLATFORM.md](docs/PLATFORM.md) | Where to run and why — 570 GB drives the decision |
