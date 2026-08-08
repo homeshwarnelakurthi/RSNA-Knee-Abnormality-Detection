@@ -1,0 +1,15 @@
+{
+  "id": "homeshwarrao/rsna-knee-cache-check",
+  "title": "RSNA Knee cache check",
+  "code_file": "cache_check.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": ["homeshwarrao/rsna-knee-2026-phase0-artifacts"],
+  "competition_sources": [],
+  "kernel_sources": ["homeshwarrao/rsna-knee-cache-build"],
+  "model_sources": []
+}
