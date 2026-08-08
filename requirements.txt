@@ -1,0 +1,10 @@
+numpy<2.3
+pandas
+pydicom
+pylibjpeg
+pylibjpeg-libjpeg
+pylibjpeg-openjpeg
+matplotlib
+scikit-learn
+pyarrow
+kaggle
