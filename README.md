@@ -9,8 +9,13 @@ Kaggle: [rsna-knee-abnormality-detection](https://www.kaggle.com/competitions/rs
 | Doc | What it is |
 |---|---|
 | [docs/STRATEGY.md](docs/STRATEGY.md) | Problem, measured data facts, host intel, ranked ideas. **Read first.** |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | The 75-day campaign, phase by phase, and the GPU-hour budget |
+| [docs/RESEARCH_AGENDA.md](docs/RESEARCH_AGENDA.md) | What we still don't know, and which decision each answer changes |
 | [docs/PLATFORM.md](docs/PLATFORM.md) | Where to run and why — 570 GB drives the decision |
-| [docs/DAY1.md](docs/DAY1.md) | Hour-by-hour first-day plan and the trap list |
+| [docs/DAY1.md](docs/DAY1.md) | Today: research and decide. Plus the standing trap list |
+
+**Decisions locked (8 Aug):** full campaign to 22 Oct · target **both** the main and efficiency
+tracks · **build our own** pipeline rather than fork the public baseline · Kaggle-only compute.
 
 ## The three things that matter
 
