@@ -79,9 +79,19 @@ Store `uint8`, not `float32`. Intensity is already normalised into [0,1] before 
 
 ## Resource facts to plan against
 
+> ⚠️ **Do not select the P100.** Measured 2026-08-08: a P100 session dies at the first
+> convolution with `CUDA error: no kernel image is available for execution on the device`.
+> Kaggle's current PyTorch ships no Pascal (sm_60) kernels. The GPU is offered in the UI
+> and accepted by the API, and the failure only appears once training starts — so it can
+> cost a queued session before you see it.
+>
+> Set `"machine_shape": "NvidiaTeslaT4"` in `kernel-metadata.json` (Turing, sm_75).
+> T4 also has tensor cores, which the P100 lacks, so mixed precision is genuinely faster
+> there rather than merely supported.
+
 | | Kaggle |
 |---|---|
-| GPU | P100 16 GB, or 2×T4 16 GB |
+| GPU | **2×T4 16 GB** (P100 is broken — see above) |
 | GPU quota | **~30 h / week** |
 | Session cap | 12 h (**9 h for a scored submission**) |
 | RAM | ~30 GB |
