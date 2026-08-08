@@ -1,0 +1,30 @@
+# Competition data — never commit (569 GB upstream; CSVs are licensed under comp rules)
+data/
+*.dcm
+*.npy
+*.npz
+*.pt
+*.pth
+
+# Report text is Competition Data. Never commit derived files that embed it verbatim.
+**/reports_*.csv
+**/*_report_text*
+
+# Env
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# StudyInstanceUIDs are Competition Data — do not redistribute via git
+eda/*.csv
+eda/*.parquet
+
+# Other participants' notebooks: read locally, never redistribute
+intel/kernels/
+intel/*.txt
+intel/*.ipynb
+
+# Scratch
+scratch/
+*.log
