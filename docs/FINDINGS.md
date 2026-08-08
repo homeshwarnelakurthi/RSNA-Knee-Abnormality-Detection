@@ -277,29 +277,46 @@ reports; uncertain and down-weighted in short ones.
 ## 9. B4 — the thesis tested directly
 
 Both extractors built (`src/report_labeler.py`) and scored on the 58 gold studies.
+Presence is 0.7443 throughout; only the severity extractor changed.
 
-| | Macro AUC |
-|---|---|
-| Presence (control) | 0.7443 |
-| **Severity (thesis)** | **0.7691** |
-| **Delta** | **+0.0247** |
-
-8 of 12 labels improved. Bootstrap over 2,000 resamples: mean +0.0248, **95 % CI
-[−0.0103, +0.0594], P(delta > 0) = 92.2 %.** The interval straddles zero — at n=58 it was always
-going to. Direction and win-count carry the information.
-
-**The predicted split held, and sharply:**
-
-| Rubric family | Presence | Severity | Delta | Improved |
+| Version | Severity macro AUC | Delta | Improved | Bootstrap 95 % CI |
 |---|---|---|---|---|
-| **Magnitude** (OA ×3, Effusion, Synovitis, Baker's) | 0.7198 | **0.7690** | **+0.0492** | **5/6** |
-| Categorical (ACL, MCL, menisci ×2, Contusion, Fracture) | 0.7688 | 0.7692 | +0.0003 | 3/6 |
+| v1 first build | 0.7691 | +0.0247 | 8/12 | [−0.0103, +0.0594] |
+| v2 negation fix | 0.7772 | +0.0328 | 9/12 | [−0.0066, +0.0718] |
+| **v3 rank-faithful priors** | **0.7907** | **+0.0464** | **11/12** | **[+0.0081, +0.0818]** |
 
-**Verdict: the magnitude half of the thesis is confirmed. The categorical half is not.**
-Nearly the whole gain comes from six labels. Per label, the categorical extractor is uneven —
-ACL **+0.121** (its complete/partial/degeneration logic works), but MCL −0.077, Lateral Meniscus
-−0.063, Medial Meniscus −0.020. The meniscus surfacing-vs-intrasubstance rules are firing wrong
-and need rebuilding; ACL's pattern is the template to copy.
+**At v3 the interval no longer straddles zero — P(delta > 0) = 99.1 %.**
+
+| Rubric family | Presence | Severity v3 | Delta | Improved |
+|---|---|---|---|---|
+| Magnitude (OA ×3, Effusion, Synovitis, Baker's) | 0.7198 | 0.7845 | **+0.0647** | **6/6** |
+| Categorical (ACL, MCL, menisci ×2, Contusion, Fracture) | 0.7688 | 0.7970 | +0.0282 | 5/6 |
+
+### The two bugs, because both are instructive
+
+**v1 → v2. `_score_categorical` tested negation last.** So `"medial meniscus: no tear"` matched
+`TEAR` and scored 0.72 — the negation branch was unreachable whenever any pathology word appeared,
+which is nearly always. `_score_magnitude` tested it first. **That single ordering difference is
+the entire reason the magnitude family gained +0.049 and the categorical family +0.000.** The
+categorical idea was never wrong; the code was. Medial Meniscus went −0.020 → +0.067.
+
+**v2 → v3. Uncertainty was being expressed in the wrong variable.** `UNMENTIONED_PRIOR` was set to
+P(positive | not mentioned) — 0.18 for Synovitis, reflecting that reports under-report it badly.
+That cost **0.121 AUC** on Synovitis. AUC is computed *per label*, so the absolute value carries no
+information whatsoever; only rank does. A prior of 0.18 placed every silent study **above** a
+report that said "mild synovitis" at 0.15 — inverting the evidence, since a mention is evidence
+*for* a finding. Severity now carries the rank estimate and `confidence` carries the uncertainty,
+which is what `confidence` was for. Synovitis went 0.518 → 0.676.
+
+### Honest caveat
+
+Three iterations against the same 58 studies, so **+0.0464 is now partly in-sample.** Both changes
+were principled — an ordering bug and a rank/uncertainty conflation, not tuned constants — but the
+true out-of-sample gain is below +0.046. Treat the *direction* as established and the *magnitude*
+as an upper bound.
+
+**MCL remains −0.075 with 9 positives.** Left alone deliberately: anything that "fixes" a label
+with 9 positives is fitting noise.
 
 **Mechanism, and why this generalises.** Binary output has 2 distinct values, so AUC cannot rank
 within either block — every positive ties with every other positive. The severity extractor emits
@@ -332,8 +349,14 @@ text-only approach will be worst at. Worth checking against per-label LB behavio
 
 ## Still open
 
-- Rebuild the meniscus and MCL categorical rules — they currently *hurt*. ACL is the template.
-- Why does Synovitis resist extraction? Possibly worth treating as an image-only label.
+- ~~Rebuild the meniscus categorical rules~~ — **done (v2)**. Medial −0.020 → +0.071,
+  Lateral −0.063 → +0.022.
+- ~~Is Synovitis an image-only label?~~ — **no.** It looked that way because of the prior bug.
+  At v3 it scores 0.676 and gains +0.036 over presence. It remains our weakest text signal
+  (named in 11.9 % of reports against 46.6 % of gold) and will lean on pixels, but the text
+  is not worthless and should not be discarded.
+- **MCL** (−0.075, 9 positives) — not fixable at this sample size. Revisit only if the
+  leaderboard shows MCL as an outlier.
 - True label prevalence — falls out of a trusted labeler in Phase 2.
 - External datasets — still blocked pending a host ruling.
 
