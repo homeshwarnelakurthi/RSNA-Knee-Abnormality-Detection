@@ -35,3 +35,6 @@ kaggle/out/
 # Derived data embedding StudyInstanceUIDs -> Kaggle dataset, not git
 artifacts/
 kaggle/dataset_phase0/*.csv
+
+# Cache kernel outputs (large binaries + UIDs)
+kaggle/out_cache/
