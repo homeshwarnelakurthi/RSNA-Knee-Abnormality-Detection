@@ -1,0 +1,16 @@
+{
+  "id": "homeshwarrao/rsna-knee-train-v1",
+  "title": "RSNA Knee train v1",
+  "code_file": "train_v1.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "machine_shape": "NvidiaTeslaT4",
+  "dataset_sources": ["homeshwarrao/rsna-knee-2026-phase0-artifacts"],
+  "competition_sources": ["competitions/rsna-knee-abnormality-detection"],
+  "kernel_sources": ["homeshwarrao/rsna-knee-cache-build"],
+  "model_sources": []
+}

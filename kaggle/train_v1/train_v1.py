@@ -172,7 +172,18 @@ class Net(nn.Module):
 
 
 dev = "cuda" if torch.cuda.is_available() else "cpu"
-log(f"device {dev}  {torch.cuda.get_device_name(0) if dev=='cuda' else ''}")
+if dev == "cuda":
+    cap = torch.cuda.get_device_capability(0)
+    log(f"device {torch.cuda.get_device_name(0)}  sm_{cap[0]}{cap[1]}  torch {torch.__version__}")
+    # Kaggle's current PyTorch ships no Pascal kernels, so a P100 session dies with
+    # "no kernel image is available for execution on the device" at the first conv.
+    # Fail here with the cause rather than 200 lines into a stack trace.
+    if cap[0] < 7:
+        raise SystemExit(
+            f"sm_{cap[0]}{cap[1]} is not supported by torch {torch.__version__}. "
+            'Set "machine_shape": "NvidiaTeslaT4" in kernel-metadata.json.')
+else:
+    log("device cpu")
 model = Net().to(dev)
 head_p = [p for n, p in model.named_parameters() if not n.startswith("bb.")]
 bb_p = [p for n, p in model.named_parameters() if n.startswith("bb.")]
