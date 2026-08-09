@@ -1,28 +1,29 @@
-# RSNA 2026 Knee Abnormality Detection
+﻿# RSNA 2026 Knee Abnormality Detection
 
 Kaggle: [rsna-knee-abnormality-detection](https://www.kaggle.com/competitions/rsna-knee-abnormality-detection)
-· 12 binary findings per knee MRI study · macro ROC-AUC · code competition, ≤9 h, internet off
-· final submission **2026-10-22**
+Â· 12 binary findings per knee MRI study Â· macro ROC-AUC Â· code competition, â‰¤9 h, internet off
+Â· final submission **2026-10-22**
 
 ## Start here
 
 | Doc | What it is |
 |---|---|
 | [docs/STRATEGY.md](docs/STRATEGY.md) | Problem, measured data facts, host intel, ranked ideas. **Read first.** |
-| [docs/FINDINGS.md](docs/FINDINGS.md) | **Phase 0 results** — 819 k files scanned; the 10 decisions they lock |
+| [docs/FINDINGS.md](docs/FINDINGS.md) | **Phase 0 results** â€” 819 k files scanned; the 10 decisions they lock |
+| [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md) | Run log — every result, runtime, and what it changed |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | The 75-day campaign, phase by phase, and the GPU-hour budget |
 | [docs/RESEARCH_AGENDA.md](docs/RESEARCH_AGENDA.md) | What we still don't know, and which decision each answer changes |
-| [docs/PLATFORM.md](docs/PLATFORM.md) | Where to run and why — 570 GB drives the decision |
+| [docs/PLATFORM.md](docs/PLATFORM.md) | Where to run and why â€” 570 GB drives the decision |
 | [docs/DAY1.md](docs/DAY1.md) | Today: research and decide. Plus the standing trap list |
 
-**Decisions locked (8 Aug):** full campaign to 22 Oct · target **both** the main and efficiency
-tracks · **build our own** pipeline rather than fork the public baseline · Kaggle-only compute.
+**Decisions locked (8 Aug):** full campaign to 22 Oct Â· target **both** the main and efficiency
+tracks Â· **build our own** pipeline rather than fork the public baseline Â· Kaggle-only compute.
 
 ## The three things that matter
 
 1. **Only 58 of 4,407 training studies carry labels.** The other 4,349 have a radiology report.
    This is a weak-supervision problem wearing a computer-vision costume.
-2. **Ground truth is image-derived, not report-derived** — two MSK radiologists plus an
+2. **Ground truth is image-derived, not report-derived** â€” two MSK radiologists plus an
    adjudicator, using explicitly **severity-thresholded** criteria, with "on the fence" graded
    negative. Report-derived labels agree only ~82 %. That gap is systematic, not random.
 3. **Random K-fold inflates AUC by ~0.053** through scanner memorisation. Group your folds.
@@ -56,4 +57,5 @@ kaggle competitions download -c rsna-knee-abnormality-detection -f train.csv -p 
 
 **Do not send report text to any hosted LLM API.** Competition Rule 4.b (Data Security) plausibly
 forbids it and the host has not ruled. Use open-weights multilingual models locally or inside a
-Kaggle notebook. See [docs/STRATEGY.md](docs/STRATEGY.md) §6.
+Kaggle notebook. See [docs/STRATEGY.md](docs/STRATEGY.md) Â§6.
+

@@ -1,0 +1,7 @@
+{
+  "backbone": "resnet34",
+  "epochs": 12,
+  "fold": 0,
+  "best_gold_auc": 0.6738963044130974,
+  "runtime_s": 1223.529361963272
+}
