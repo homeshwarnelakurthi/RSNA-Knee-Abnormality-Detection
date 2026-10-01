@@ -160,30 +160,50 @@ and must not be presented as such. Any final submission should be our own.
 
 ## 5. UNVERIFIED — do not build on these without checking
 
-1. **That the fork scores ~0.942 for us.** Unknown at handoff; the kernel was still running. Check
-   the actual public score before treating 0.942 as our floor.
-2. **That the +0.136 grouped-vs-random gap transfers to the public ensemble.** It was measured on
-   *our* August resnet34, single fold, single seed. Whether the public ensemble's members leak site
-   the same way is **unmeasured**. The whole "grouped folds are our edge" thesis rests on this.
-3. **That MCL and Medial Meniscus are worth +0.067 macro.** That arithmetic uses *our August
-   model's* gold-58 per-target AUCs — n=58, and MCL has 9 positives. **The public ensemble's
-   per-target AUCs are completely unknown.** It may already handle these labels well, in which case
-   the headroom is elsewhere or much smaller. **Measure the base's per-target AUC before targeting
-   anything.**
-4. **That the efficiency track is "less contested".** I never opened
-   `ryanholbrook/rsna-knee-abnormalities-efficiency-lb`. It is pulled into `public_refs/` — read it.
-5. **That grouped-fold discipline is unexploited by others.** `mattiaangeli/knee-mri-fold-weights`
-   implies other teams have a fold structure. Not inspected.
-6. **That `rsna-knee-cache-build`'s 15.9 GB output is still mountable and still matches the current
-   competition data.** The kernel reports COMPLETE, but the output was not listed or mounted this
-   session, and the competition data may have been revised since August.
-7. **That all public notebooks "confirm" the 336 px Nyquist argument.** A regex matched the string
-   `336`; I did not confirm it means `IMG_SIZE` in each notebook. Weak evidence, and in any case
-   336 px is now public practice, so it is not an edge.
-8. **Whether API-based report labelling is rules-compliant.** `pilkwang/rsna-knee-llm-labels` ships
-   an `api_labeler.py`, suggesting public teams used hosted APIs. The August decision was to avoid
-   this under Rule 4.b. **This is a rules question for the host or the user, not for me to decide.**
-   Using the *published labels* is a different question from calling an API ourselves.
+> **VERIFICATION PASS 2026-10-01 (later same day).** Items 4–8 below have since been checked.
+> Resolutions are inline. See §9 for the full pass, including three items from §1–§3 that turned
+> out to be wrong.
+
+1. **That the fork scores ~0.942 for us.** **STILL UNVERIFIED.** Never submitted. Note the rank
+   gradient measured in §9: 0.942 is rank ~1028, 0.943 is rank ~290. The difference between those
+   two thousandths is 738 places, so "~0.942" is not a safe approximation of anything.
+2. **That the +0.136 grouped-vs-random gap transfers to the public ensemble.** **STILL
+   UNVERIFIED.** Measured only on our August resnet34, single fold, single seed.
+3. **That MCL and Medial Meniscus are worth +0.067 macro.** **EFFECTIVELY FALSIFIED for the public
+   ensemble, by arithmetic.** The +0.067 is exactly "lift both from our August values to 0.85", so
+   the arithmetic is right *for our model*. But macro 0.943 means the twelve AUCs sum to 11.316;
+   if the other eleven average 0.96 the worst possible target is 0.756. MCL at 0.420 is
+   arithmetically impossible at 0.943 macro. The headroom table must be rebuilt from the base's
+   own per-target AUCs, not ours.
+4. **That the efficiency track is "less contested".** **FALSIFIED.** The official efficiency
+   leaderboard carries **4,547 teams** — essentially everyone who submits is auto-eligible.
+   Efficiency ranks 1–10 hold public scores 0.946–0.958 (median 0.954), and the three prizes sit at
+   0.958 / 0.957 / 0.952. Runtime does enormous work *at fixed accuracy* — of the 397 teams at
+   exactly 0.943, efficiency ranks run from 104 to 4,338 — but an efficiency **prize** still needs
+   ~0.95+. It is the same accuracy bar plus a runtime constraint, not an easier path.
+5. **That grouped-fold discipline is unexploited by others.** **SUPPORTED, from source.**
+   `sofiaanjenje/rsna-knee-e11-train` defines `report_groups()` as a SHA-256 of the *report text*,
+   guarded by `if len(np.unique(groups)) < 4000: raise`. With ~4,000 groups over 4,407 studies that
+   is deduplication, i.e. effectively random K-fold. It does **not** control for site.
+   `mattiaangeli/knee-mri-fold-weights` exists (`m_f0.pt` …) but its grouping scheme was **not**
+   inspected — the name proves nothing.
+6. **That the August cache still mounts and matches current competition data.** **VERIFIED.**
+   `rsna-knee-cache-check` re-run 2026-10-01: mounts at
+   `/kaggle/input/notebooks/homeshwarrao/rsna-knee-cache-build`, shape `(4407, 6, 12, 224, 224)`
+   uint8, 15.92 GB, slot presence identical to August, 0 slots present-but-blank, 0 absent-but-
+   filled over 400 sampled studies, weak labels join 100%. Separately, `train.csv`,
+   `train_series.csv`, `test.csv`, `test_series.csv`, `sample_submission.csv` and one sampled
+   DICOM are **byte-identical (md5)** to the August copies — the 2026-09-19 file dates are a
+   re-index, not a revision.
+7. **That all public notebooks "confirm" the 336 px Nyquist argument.** **STILL UNVERIFIED** and
+   still not an edge.
+8. **Whether API-based report labelling is rules-compliant.** **RESOLVED — IT IS PERMITTED.**
+   The host ruled in discussion 733965: *"submitting Competition Data, including report text, to an
+   external LLM or API for inference or other computational processing (for example, extracting
+   labels from reports) will not, by itself, be considered prohibited PRIVATE SHARING."* He later
+   confirmed directly: *"You can use LLM API, such as those from OpenAI, to read the reports to
+   generate the labels."* The PRIVATE SHARING clause targets sharing with other participants or
+   teams, not API inference. **The August constraint was wrong and is withdrawn.**
 
 ---
 
@@ -247,3 +267,103 @@ contents, check the status — do not infer from names, absences, or plausibilit
 **Open decision for the user:** main leaderboard, efficiency track, or both. I proposed both, with
 efficiency as the realistic prize target, since a single submission can be eligible for each — but
 that was argued from an unverified assumption about how contested the efficiency track is (§5.4).
+
+---
+
+## 9. Verification pass — 2026-10-01 (second session)
+
+Every claim in §1–§5 was re-checked against the live source. Method is named for each.
+
+### Confirmed exact (live Kaggle pages + API)
+
+Metric and the 12 targets; submission format; all prizes (main 9/7/6.5/6/5.5/5×5k, efficiency
+7/6/5k); timeline (entry 15 Oct, final **22 Oct**, winners 5 Nov); code-competition limits
+(≤9 h, internet disabled, external data allowed); the efficiency formula
+`AUC/(Benchmark − maxAUC) + RuntimeSeconds/32400`; both host quotes verbatim — *"The Report field
+will not be provided at the testing stage"* and the prevalence-shift notice.
+
+Our account: rules accepted (`userHasEntered=True`), **0 lifetime submissions**, 5 remaining today.
+All five kernels report COMPLETE; `rsna-knee-2026-phase0-artifacts` is `ready`.
+
+Repo data: **58 of 4,407** studies carry all 12 labels; MCL has **9** positives; gold prevalence
+matches §2 exactly; `run.json` holds gold macro **0.6739** and runtime **1223.5 s**.
+
+`kaggle/base-fork` is **byte-identical in source** (sha256 over all 51 cells) to
+`maverickss26/rsna-knee-0942-restructured`. It is an unmodified fork.
+
+`sofiaanjenje/rsna-knee-e11-train` and `e13-train` are genuine training kernels — `EPOCHS = 10`,
+`AdamW`, `OneCycleLR`, `.backward()`, `torch.save`, `GroupKFold(5)`. They differ from each other
+only in slot ordering (12 diff lines), so they are sibling variants, not distinct approaches. They
+also put the 58 gold studies **into** training at `w[gold] = 3.0`; we held ours out.
+
+### Drift since the handoff was written (hours)
+
+Teams 4,759 → **4,765** · entrants 23,332 → **23,341** · submissions 73,848 → **73,905**.
+
+### The rank gradient — the most decision-relevant number found
+
+Computed from the full 4,765-row leaderboard export:
+
+| Public score | Best achievable rank | Teams tied there |
+|---|---|---|
+| 0.953 | 49 | 10 |
+| 0.947 | 120 | 19 |
+| 0.945 | 170 | 61 |
+| 0.944 | 231 | 59 |
+| **0.943** | **290** | **738** |
+| **0.942** | **1028** | 175 |
+| 0.891 | 3045 | 148 |
+
+**One thousandth of AUC between 0.942 and 0.943 is 738 places.** A top-10 prize needs **0.957** —
+`+0.014` over the 0.943 cluster. Treat any statement of the form "we are at ~0.94" as meaningless
+without the third decimal.
+
+### The data specification changed since August
+
+Competition **data** is unchanged (md5-identical). The **description** was edited:
+
+- `PatientSex` is gone from the `train.csv` schema — the August discrepancy we logged was a doc bug
+  and the host fixed it.
+- A new sentence appeared: *"although Fluid_Sensitive and Fat_Suppression are often correlated, as
+  observed in the training set, they are not necessarily equivalent for every case."*
+
+Re-verified: in train there are **0 off-diagonal series** (10,361 at `(0,0)`, 14,010 at `(1,1)`),
+so the August measurement was right. But the note is plainly aimed at teams who collapsed the two
+columns, which we did. Our cache keys on `Fluid_Sensitive` only, so it degrades gracefully, but at
+test time a fat-suppressed non-fluid-sensitive series would be filed into a `STRUCT` slot.
+
+### Also ruled by the host (discussion 733965)
+
+External datasets under **non-commercial research licences** (OAI, MRNet, fastMRI+, SKM-TEA) are
+*"not prohibited on that basis alone"* — prize money does not make the use commercial. The binding
+test is accessibility: click-through registration generally fine; IRB, negotiated agreements or
+institution-specific approval may not be. Dataset-specific licence compliance remains the team's
+responsibility.
+
+### Corrections to this document itself
+
+- §2 said the last commit was `db63fac` (2026-08-08). There is a later commit, `607385a`, this doc.
+- §3 said the public references were "all pulled into `public_refs/`". `public_refs/` holds
+  **7 notebooks only**. `pilkwang/rsna-knee-llm-labels` and `dreaddevelopment/raptor-knee-native384`
+  both exist on Kaggle — verified by listing their files — but **neither is present locally**.
+- EXPERIMENTS.md reports gold macro 0.6739 while the per-target table it prints averages 0.6651.
+  Both are correct: `run.json` saved the **best** epoch (9) and the per-target table was printed
+  after the **final** epoch (12). Worth fixing in the harness so one run reports one number.
+
+### Two errors made during this pass, recorded per the standing instruction
+
+- A `dump_nb.py` call returned 69 bytes and I nearly concluded the public training notebooks were
+  empty. It was a Windows console encoding crash, sent to `/dev/null` by my own redirect. The
+  notebooks hold 278,775 characters of source. **Set `PYTHONIOENCODING=utf-8` and never discard
+  stderr while verifying.**
+- A DICOM comparison reported `*** DIFFERS ***` because I *inferred* the archive path from a local
+  flattened copy instead of reading it from `competitions files`. With the real path the file is
+  md5-identical.
+
+### Still unverified after this pass
+
+1. What `rsna-knee-base-fork` actually scores. Requires a submission.
+2. Whether the +0.136 grouped-vs-random gap transfers to the public ensemble.
+3. The public ensemble's per-target AUCs — bounded by arithmetic above, not measured.
+4. What `mattiaangeli/knee-mri-fold-weights` groups on.
+5. Whether 336 px is load-bearing in the public notebooks.
