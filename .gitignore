@@ -38,3 +38,6 @@ kaggle/dataset_phase0/*.csv
 
 # Cache kernel outputs (large binaries + UIDs)
 kaggle/out_cache/
+
+# pulled copies of public notebooks, for reference only
+public_refs/
