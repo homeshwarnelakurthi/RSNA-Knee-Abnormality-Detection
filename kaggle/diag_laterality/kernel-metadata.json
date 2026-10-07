@@ -1,0 +1,15 @@
+{
+  "id": "homeshwarrao/rsna-knee-diag-laterality",
+  "title": "RSNA Knee diag laterality",
+  "code_file": "diag_laterality.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": ["homeshwarrao/rsna-knee-2026-phase0-artifacts"],
+  "competition_sources": ["competitions/rsna-knee-abnormality-detection"],
+  "kernel_sources": ["homeshwarrao/rsna-knee-cache-build", "homeshwarrao/rsna-knee-train-v1"],
+  "model_sources": []
+}
